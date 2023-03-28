@@ -1,38 +1,32 @@
 ﻿#pragma once
 
-#include <windows.h>
-#include <memory>
-#include <winhttp.h>
 #include <string>
 #include <vector>
-#pragma hdrstop
 
-#include "Response.h"
-
-#ifdef DELETE
-#undef DELETE
-#endif
-
-class Request {
+class CRequest {
 public:
-    Request(std::wstring url);
+    CRequest(const std::wstring& method, const std::wstring& url, const std::wstring& data, const std::vector<std::pair<std::wstring, std::wstring>>& headers)
+        : method_(method), url_(url), data_(data), headers_(headers) {}
 
-    virtual void SetHeader(std::wstring header);
-    virtual void SetData(std::wstring data);
-    virtual std::unique_ptr<Response> GET();
-    virtual std::unique_ptr<Response> POST();
-    virtual std::unique_ptr<Response> PATCH();
-    virtual std::unique_ptr<Response> PUT();
-    virtual std::unique_ptr<Response> DELETE();
+    const std::wstring& GetMethod() const {
+        return method_;
+    }
+
+    const std::wstring& GetUrl() const {
+        return url_;
+    }
+
+    const std::wstring& GetData() const {
+        return data_;
+    }
+
+    const std::vector<std::pair<std::wstring, std::wstring>>& GetHeaders() const {
+        return headers_;
+    }
 
 private:
-    virtual std::unique_ptr<Response> Send(std::wstring method);
-
-private:
-    std::wstring url;
-    std::vector<std::wstring> headers;
-    std::wstring data;
-    HINTERNET hSession = NULL;
-    HINTERNET hConnect = NULL;
-    HINTERNET hRequest = NULL;
+    std::wstring method_;
+    std::wstring url_;
+    std::wstring data_;
+    std::vector<std::pair<std::wstring, std::wstring>> headers_;
 };
