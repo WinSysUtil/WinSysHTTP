@@ -39,7 +39,8 @@ CResponse CHttpConnect::SendRequest(const CRequest& request) {
     }
 
     // Create the request
-    HINTERNET httpRequest = WinHttpOpenRequest(connect, request.GetMethod().c_str(), urlPathBuf.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, urlComponents.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+    const wchar_t* accept_types[] = { L"*/*", nullptr };
+    HINTERNET httpRequest = WinHttpOpenRequest(connect, request.GetMethod().c_str(), urlPathBuf.c_str(), NULL, WINHTTP_NO_REFERER, accept_types, urlComponents.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
     if (!httpRequest) {
         WinHttpCloseHandle(connect);
         throw std::runtime_error("Failed to create request");
@@ -47,18 +48,39 @@ CResponse CHttpConnect::SendRequest(const CRequest& request) {
 
     // Set the headers
     for (const auto& header : request.GetHeaders()) {
-        if (!WinHttpAddRequestHeaders(httpRequest, (header.first + L": " + header.second).c_str(), static_cast<DWORD>(-1L), WINHTTP_ADDREQ_FLAG_ADD)) {
+        std::wstring wstrHeader;
+        wstrHeader.append(header.first);
+        wstrHeader.append(L": ");
+        wstrHeader.append(header.second);
+        wstrHeader.append(L"\r");
+
+        if (!WinHttpAddRequestHeaders(httpRequest, wstrHeader.c_str(), wstrHeader.length(), WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE)) {
             WinHttpCloseHandle(httpRequest);
             WinHttpCloseHandle(connect);
             throw std::runtime_error("Failed to add request header");
         }
     }
 
-    // Send the request
-    if (!WinHttpSendRequest(httpRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, request.GetData().empty() ? WINHTTP_NO_REQUEST_DATA : const_cast<LPWSTR>(request.GetData().c_str()), static_cast<DWORD>(request.GetData().length()), static_cast<DWORD>(request.GetData().length()), 0)) {
+    auto nLenBody = static_cast<DWORD>(request.GetData().length() * sizeof(wchar_t));
+    if (!WinHttpSendRequest(httpRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, nLenBody, 0))
+    {
         WinHttpCloseHandle(httpRequest);
         WinHttpCloseHandle(connect);
         throw std::runtime_error("Failed to send request");
+    }
+
+
+    if (nLenBody > 0) {
+        DWORD bytes_written = 0;
+        if (!WinHttpWriteData(httpRequest, request.GetData().c_str(), nLenBody, &bytes_written))
+        {
+            DWORD err = ::GetLastError();
+            throw std::runtime_error("WinHttpWriteData() failed");
+        }
+        if (bytes_written != nLenBody) {
+            throw std::runtime_error("WinHttpWriteData did not send entire request_t body");
+        }
+
     }
 
     // Wait for the response
