@@ -92,11 +92,12 @@ CResponse CHttpConnect::SendRequest(const CRequest& request) {
 
     // Read the response
     std::vector<char> buffer(1024);
-    std::wstring responseBody;
+    std::string strResponseBody;
     DWORD bytesRead = 0;
     while (WinHttpReadData(httpRequest, &buffer[0], buffer.size(), &bytesRead) && bytesRead > 0) {
-        responseBody.append(buffer.begin(), buffer.begin() + bytesRead);
+        strResponseBody.append(buffer.begin(), buffer.begin() + bytesRead);
     }
+
 
     // Get the status code
     DWORD statusCode = 0;
@@ -153,5 +154,10 @@ CResponse CHttpConnect::SendRequest(const CRequest& request) {
     WinHttpCloseHandle(httpRequest);
     WinHttpCloseHandle(connect);
 
-    return CResponse(statusCode, std::vector<std::pair<std::wstring, std::wstring>>(responseHeaders.begin(), responseHeaders.end()), responseBody);
+    int size = MultiByteToWideChar(CP_UTF8, 0, strResponseBody.c_str(), -1, nullptr, 0);
+    std::wstring wstrResponseBody(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, strResponseBody.c_str(), -1, &wstrResponseBody[0], size);
+
+
+    return CResponse(statusCode, std::vector<std::pair<std::wstring, std::wstring>>(responseHeaders.begin(), responseHeaders.end()), wstrResponseBody);
 }
